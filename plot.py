@@ -114,7 +114,7 @@ fig.subplots_adjust(bottom=0.3)
 
 ax1 = fig.add_subplot(111)
 
-ax1.set_title("Model comparison")    
+ax1.set_title("Speed optimizations")    
 ax1.set_xlabel('')
 ax1.set_ylabel('Percent')
 

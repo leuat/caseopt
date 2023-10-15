@@ -11,19 +11,17 @@
 #include <fstream>
 
 /*
-to generate asm: 
+to generate asm:
 
   clang -masm=intel -S -Wall -O3 -o - main.cpp -I/opt/homebrew/opt/libomp/include  -Ofast --std=c++11  >main.asm
 
 */
 
-
-
 /*  vars */
 
 /*
 
-Questions: 
+Questions:
 - why is lut uint32_t?
 
 
@@ -41,16 +39,45 @@ const int height = 1024;
 const int N = 256;
 const int lutWidth = 128;
 const int lutHeight = 128;
-
-int experiment = 0; 
-
+const int maxLutValue = 64;
+int experiment = 0;
+bool isFirst = true;
 double orgProcessTime = 0;
 
 std::ofstream outFile;
 
-
 void (*process)(const uint16_t *image, int width, int height, uint32_t *lut,
                 int lut_size, uint8_t *output);
+
+
+
+
+void ProcessOrgCount(const uint16_t *image, int width, int height, uint32_t *lut,
+                int lut_size, uint8_t *output)
+{
+    int cnt = 0;
+    for (int x = 0; x < width; x++)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            // Find the index into the lut
+            int lut_x = x % lut_size;
+            int lut_y = y % lut_size;
+            int lut_index = lut_y * lut_size + lut_x;
+            output[y * width + x] = 0;
+            // If blue component is larger than value in lut, set output to 0x20
+            if ((image[y * width + x] & 0x1f) > lut[lut_index])
+            {
+                output[y * width + x] = 0x20;
+                cnt+=1;
+            }
+        }
+    }
+    if (isFirst)
+       std::cout << "Original percentage of trues : "<< std::to_string((double)cnt/(width*height)*100)<<"%" <<std::endl;
+    isFirst = false;
+}
+
 
 void ProcessOrg(const uint16_t *image, int width, int height, uint32_t *lut,
                 int lut_size, uint8_t *output)
@@ -91,7 +118,7 @@ void Stop(std::string txt, bool isFirst = false)
     else
         end = " " + std::to_string((int)(elapsed / orgProcessTime * 100.0)) + "%";
 
-    outFile << experiment++<<"\t" << txt <<"\t"<< std::to_string((int)(elapsed / orgProcessTime * 100.0)) << std::endl;
+    outFile << experiment++ << "\t" << txt << "\t" << std::to_string((int)(elapsed / orgProcessTime * 100.0)) << std::endl;
 
     std::cout << txt << " " /*<< (int)elapsed */ << end << std::endl;
 }
@@ -183,11 +210,10 @@ void ProcessOpt4(const uint16_t *image, int width, int height, uint32_t *lut,
             int lut_y = y % lut_size;
             int lut_index = lut_y * lut_size + lut_x;
             // Default set output to zero
-            int idx = y * width + x;
             // If blue component is larger than value in lut, set output to 0x20
 
-            if ((image[idx] & 0x1f) > lut[lut_index])
-                output[idx] = 0x20;
+            if ((image[y * width + x] & 0x1f) > lut[lut_index])
+                output[y * width + x] = 0x20;
         }
     }
 }
@@ -281,65 +307,110 @@ void ProcessOpt9(const uint16_t *image, int width, int height, uint32_t *lut,
     }
 }
 
- // actually SLOWER
 void ProcessOpt10(const uint16_t *image, int width, int height, uint32_t *lut,
-                 int lut_size, uint8_t *output)
+                  int lut_size, uint8_t *output)
 {
-//    memset(output, 0, width * height);
-    int tab2[] = {0,0x20};
+    int tab2[] = {0, 0x20};
     for (int idx = 0; idx < width * height; idx++)
     {
-            output[idx] = tab2[((image[idx] & 0x1f) > lutMerged[idx])];
+        output[idx] = tab2[((image[idx] & 0x1f) > lutMerged[idx])];
     }
 }
 
 void ProcessOpt11(const uint16_t *image, int width, int height, uint32_t *lut,
-                 int lut_size, uint8_t *output)
+                  int lut_size, uint8_t *output)
 {
     memset(output, 0, width * height);
 
-    #pragma unroll
+#pragma unroll
     for (int idx = 0; idx < width * height; idx++)
     {
-//        0000 0000 0001 1111
         if ((image[idx] & 0x1f) > lutMerged[idx])
             output[idx] = 0x20;
     }
 
-
+//    asm(" ldurh	w16, [x12, #-6]");
 /*
+    asm("
 
-	ldurh	w16, [x12, #-6]
-	and	w16, w16, #0x1f
-	add	x17, x15, x10, lsl #2
-	ldr	w17, [x17, #4]
-	cmp	w17, w16
-	b.lo	LBB15_20
-LBB15_13:                               ;   in Loop: Header=BB15_11 Depth=1
-	ldurh	w16, [x12, #-4]
-	and	w16, w16, #0x1f
-	add	x17, x15, x10, lsl #2
-	ldr	w17, [x17, #8]
-	cmp	w17, w16
-	b.lo	LBB15_21
-
-
-*/
-
+        ldurh	w16, [x12, #-6]
+        and	w16, w16, #0x1f
+        add	x17, x15, x10, lsl #2
+        ldr	w17, [x17, #4]
+        cmp	w17, w16
+        b.lo	LBB15_20
+    LBB15_13:                               ;   in Loop: Header=BB15_11 Depth=1
+        ldurh	w16, [x12, #-4]
+        and	w16, w16, #0x1f
+        add	x17, x15, x10, lsl #2
+        ldr	w17, [x17, #8]
+        cmp	w17, w16
+        b.lo	LBB15_21
+    ");*/
+    
 }
 
-
 void ProcessOpt12(const uint16_t *image, int width, int height, uint32_t *lut,
-                 int lut_size, uint8_t *output)
+                  int lut_size, uint8_t *output)
 {
     memset(output, 0, width * height);
+#pragma omp parallel for num_threads(2)
+    for (int idx = 0; idx < width * height; idx++)
+    {
+        if ((image[idx] & 0x1f) > lutMerged[idx])
+            output[idx] = 0x20;
+    }
+}
+
+void ProcessOpt13(const uint16_t *image, int width, int height, uint32_t *lut,
+                  int lut_size, uint8_t *output)
+{
+    memset(output, 0, width * height);
+#pragma omp parallel for num_threads(2)
+    for (int i = 0; i < 2; i++)
+    {
+        if (i == 0)
+        {
+#pragma unroll
+            for (int idx = 0; idx < width * height; idx += 2)
+            {
+                if ((image[idx] & 0x1f) > lutMerged[idx])
+                    output[idx] = 0x20;
+            }
+        }
+        if (i == 1)
+        {
+#pragma unroll
+            for (int idx = 1; idx < width * height; idx += 2)
+            {
+                if ((image[idx] & 0x1f) > lutMerged[idx])
+                    output[idx] = 0x20;
+            }
+        }
+    }
+}
+
+void ProcessOpt14(const uint16_t *image, int width, int height, uint32_t *lut,
+                  int lut_size, uint8_t *output)
+{
+    int tab2[] = {0, 0x20};
     #pragma omp parallel for num_threads(2)
     for (int idx = 0; idx < width * height; idx++)
     {
-        if ((image[idx] & 0x1f) > lutMerged[idx])
-            output[idx] = 0x20;
+        output[idx] = tab2[((image[idx] & 0x1f) > lutMerged[idx])];
     }
 }
+void ProcessOpt15(const uint16_t *image, int width, int height, uint32_t *lut,
+                  int lut_size, uint8_t *output)
+{
+    int tab2[] = {0, 0x20};
+    #pragma unroll
+    for (int idx = 0; idx < width * height; idx++)
+    {
+        output[idx] = tab2[((image[idx] & 0x1f) > lutMerged[idx])];
+    }
+}
+
 
 
 // Some random values in the lookup table
@@ -347,7 +418,7 @@ void InitLut(uint32_t *pLut)
 {
     for (int i = 0; i < lutWidth * lutHeight; i++)
     {
-        pLut[i] = rand() & 2047;
+        pLut[i] = rand() % maxLutValue;
     }
 }
 
@@ -387,9 +458,7 @@ void Init()
     InitLidx();
 
     outFile = std::ofstream("data.txt");
-;
-
-
+    
 }
 
 void Verify()
@@ -435,6 +504,7 @@ void Cleanup()
 int main()
 {
     Init();
+    Execute(&ProcessOrgCount, "Counting", true);
     Execute(&ProcessOrg, "Original", true);
     Execute(&ProcessOrg, "Original", true);
     Execute(&ProcessOpt1, "OpenMP opt");
@@ -446,9 +516,14 @@ int main()
     Execute(&ProcessOpt7, "Lidx");
     Execute(&ProcessOpt8, "LutMerged");
     Execute(&ProcessOpt9, "No double loop");
+    memset(outWork, 0, width * height);
     Execute(&ProcessOpt10, "Try > and tab?");
     Execute(&ProcessOpt11, "Unroll that thing");
-    Execute(&ProcessOpt12, "Just openMP 2 cores");
+    Execute(&ProcessOpt12, "openMP 2 cores");
+    Execute(&ProcessOpt13, "OMP + unrolled");
+    memset(outWork, 0, width * height);
+    Execute(&ProcessOpt14, "tab omp");
+    Execute(&ProcessOpt15, "tab unrolled");
 
     Cleanup();
 
