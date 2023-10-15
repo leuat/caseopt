@@ -1,0 +1,18 @@
+0	Counting	100
+1	Original	100
+2	Original	100
+3	OpenMP opt	70
+4	Indices	99
+5	Remove output	97
+6	Memset	51
+7	No mod%	50
+8	Index	41
+9	Lidx	39
+10	LutMerged	29
+11	No double loop	28
+12	Try > and tab?	35
+13	Unroll that thing	21
+14	openMP 2 cores	19
+15	OMP + unrolled	21
+16	tab omp	29
+17	tab unrolled	37

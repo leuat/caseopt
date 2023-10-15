@@ -144,7 +144,7 @@ for path in sys.argv:
 
 
 leg = ax1.legend()
-plt.savefig('compare.eps', format='eps', dpi=1000)
+plt.savefig('data.png', format='png', dpi=1000)
 #plt.savefig('compare.png', format='png', dpi=1000)
 
-plt.show()
+#plt.show()

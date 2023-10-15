@@ -36,10 +36,10 @@ std::chrono::time_point<std::chrono::system_clock> StartTime;
 
 const int width = 1024;
 const int height = 1024;
-const int N = 256;
+const int N = 2048;
 const int lutWidth = 128;
 const int lutHeight = 128;
-const int maxLutValue = 64;
+int maxLutValue = 128;
 int experiment = 0;
 bool isFirst = true;
 double orgProcessTime = 0;
@@ -501,8 +501,9 @@ void Cleanup()
     delete[] lidx;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+    maxLutValue = atoi(argv[1]);
     Init();
     Execute(&ProcessOrgCount, "Counting", true);
     Execute(&ProcessOrg, "Original", true);
